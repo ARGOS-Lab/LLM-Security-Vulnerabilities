@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Privacy Investigation - Burp XML Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.3) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+            color: white;
+            padding: 50px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.3;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.5;
+            }
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            margin-bottom: 12px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .header-icon {
+            font-size: 56px;
+            margin-bottom: 15px;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .header p {
+            opacity: 0.95;
+            font-size: 16px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+        }
+
+        .upload-section {
+            padding: 50px 40px;
+            background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
+        }
+
+        .upload-area {
+            border: 3px dashed #7e22ce;
+            border-radius: 16px;
+            padding: 70px 30px;
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(126, 34, 206, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-area:hover::before {
+            left: 100%;
+        }
+
+        .upload-area:hover {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            border-color: #6b21a8;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(126, 34, 206, 0.2);
+        }
+
+        .upload-area.dragover {
+            background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%);
+            border-color: #6b21a8;
+            transform: scale(1.02);
+            box-shadow: 0 15px 40px rgba(126, 34, 206, 0.3);
+        }
+
+        .upload-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .upload-area h2 {
+            font-size: 24px;
+            color: #1f2937;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .upload-area p {
+            color: #6b7280;
+            font-size: 15px;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .provider-select {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .provider-select label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin-right: 15px;
+        }
+
+        .provider-select select {
+            padding: 14px 24px;
+            font-size: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            min-width: 220px;
+            transition: all 0.3s;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .provider-select select:hover {
+            border-color: #7e22ce;
+            box-shadow: 0 4px 12px rgba(126, 34, 206, 0.15);
+        }
+
+        .provider-select select:focus {
+            outline: none;
+            border-color: #7e22ce;
+            box-shadow: 0 0 0 4px rgba(126, 34, 206, 0.1);
+        }
+
+        .results {
+            padding: 50px 40px;
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 50px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+            transform: rotate(45deg);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+        }
+
+        .stat-card .icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+            opacity: 0.9;
+        }
+
+        .stat-card .number {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .stat-card .label {
+            font-size: 15px;
+            opacity: 0.95;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1f2937;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 4px solid;
+            border-image: linear-gradient(90deg, #667eea 0%, #764ba2 100%) 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-title .icon {
+            font-size: 32px;
+        }
+
+        .category-group {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s;
+        }
+
+        .category-group:hover {
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .category-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .domain-list {
+            list-style: none;
+        }
+
+        .domain-list li {
+            padding: 14px 18px;
+            background: white;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .domain-list li:hover {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transform: translateX(4px);
+        }
+
+        .request-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+        }
+
+        .request-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .flagged-card {
+            border-left: 5px solid #dc2626;
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f3f4f6;
+        }
+
+        .request-badges {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .request-method {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .method-GET {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .method-POST {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .method-PUT {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .method-DELETE {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .status-2xx {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .status-3xx {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .status-4xx {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .status-5xx {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .flag-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .flag-critical {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            animation: pulse-red 2s ease-in-out infinite;
+        }
+
+        .flag-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .flag-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        @keyframes pulse-red {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+            }
+        }
+
+        .flag-section {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid #fca5a5;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .flag-section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .flag-list {
+            list-style: none;
+            margin-top: 12px;
+        }
+
+        .flag-list li {
+            padding: 10px 14px;
+            background: white;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border-left: 4px solid #dc2626;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .flag-icon {
+            font-size: 18px;
+        }
+
+        .request-time {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .info-grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 16px;
+            font-size: 14px;
+        }
+
+        .info-label {
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        .info-value {
+            color: #1f2937;
+            word-break: break-all;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .cookie-list,
+        .header-list {
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 16px;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cookie-item,
+        .header-item {
+            padding: 10px 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .cookie-item:last-child,
+        .header-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .export-buttons {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 40px;
+            border-top: 2px solid #e5e7eb;
+        }
+
+        .export-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px 36px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .export-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .export-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px 40px;
+            display: none;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 30px;
+            border: 5px solid #f3f4f6;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            font-size: 18px;
+            color: #4b5563;
+            font-weight: 600;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 30px;
+            background: #f9fafb;
+            padding: 8px;
+            border-radius: 16px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            flex: 1;
+            min-width: 150px;
+            padding: 14px 24px;
+            background: transparent;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: #6b7280;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .tab.active {
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease-in;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 28px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .info-row {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="header-icon">🔒</div>
+                <h1>LLM Privacy Investigation</h1>
+                <p>Comprehensive Burp Suite XML Analysis for ChatGPT, Claude, Gemini, and Grok</p>
+            </div>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <h2>Drop your Burp Suite XML file here</h2>
+                <p>or click to browse from your computer</p>
+                <input type="file" id="fileInput" accept=".xml">
+            </div>
+
+            <div class="provider-select">
+                <label for="providerSelect">🏢 Select Provider:</label>
+                <select id="providerSelect">
+                    <option value="all">All Providers</option>
+                    <option value="openai">OpenAI (ChatGPT)</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="google">Google (Gemini)</option>
+                    <option value="xai">xAI (Grok)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing XML data...</div>
+        </div>
+
+        <div class="results" id="results">
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab(event, 'summary')">📊 Summary</button>
+                <button class="tab" onclick="switchTab(event, 'domains')">🌐 Domains</button>
+                <button class="tab" onclick="switchTab(event, 'cookies')">🍪 Cookies</button>
+                <button class="tab" onclick="switchTab(event, 'requests')">📡 Requests</button>
+            </div>
+
+            <div id="summary" class="tab-content active"></div>
+            <div id="domains" class="tab-content"></div>
+            <div id="cookies" class="tab-content"></div>
+            <div id="requests" class="tab-content"></div>
+
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportToCSV()">📊 Export to CSV</button>
+                <button class="export-btn" onclick="exportToJSON()">📋 Export to JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let analyzedData = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.xml')) {
+                alert('⚠️ Please upload an XML file');
+                return;
+            }
+
+            loading.classList.add('active');
+            results.classList.remove('active');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const xmlText = e.target.result;
+                    analyzedData = analyzeXML(xmlText);
+                    displayResults(analyzedData);
+                    loading.classList.remove('active');
+                    results.classList.add('active');
+                } catch (error) {
+                    loading.classList.remove('active');
+                    alert('❌ Error parsing XML: ' + error.message);
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function analyzeXML(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+            const items = xmlDoc.getElementsByTagName('item');
+
+            const data = {
+                totalRequests: items.length,
+                exportTime: xmlDoc.documentElement.getAttribute('exportTime'),
+                burpVersion: xmlDoc.documentElement.getAttribute('burpVersion'),
+                requests: [],
+                domains: {},
+                cookies: new Set(),
+                categories: {},
+                flaggedRequests: []
+            };
+
+            for (let item of items) {
+                const request = parseItem(item);
+
+                // Flag suspicious requests
+                const flags = analyzeRequestForFlags(request);
+                request.flags = flags;
+                if (flags.length > 0) {
+                    data.flaggedRequests.push(request);
+                }
+
+                data.requests.push(request);
+
+                const category = categorizeDomain(request.host);
+                if (!data.categories[category]) {
+                    data.categories[category] = new Set();
+                }
+                data.categories[category].add(request.host);
+
+                if (!data.domains[request.host]) {
+                    data.domains[request.host] = 0;
+                }
+                data.domains[request.host]++;
+
+                Object.keys(request.cookies).forEach(cookie => data.cookies.add(cookie));
+            }
+
+            data.cookies = Array.from(data.cookies);
+            Object.keys(data.categories).forEach(cat => {
+                data.categories[cat] = Array.from(data.categories[cat]);
+            });
+
+            return data;
+        }
+
+        function parseItem(item) {
+            const getElementText = (name) => {
+                const el = item.getElementsByTagName(name)[0];
+                return el ? el.textContent : '';
+            };
+
+            const requestEl = item.getElementsByTagName('request')[0];
+            const responseEl = item.getElementsByTagName('response')[0];
+
+            let requestData = '';
+            if (requestEl) {
+                if (requestEl.getAttribute('base64') === 'true') {
+                    requestData = atob(requestEl.textContent);
+                } else {
+                    requestData = requestEl.textContent;
+                }
+            }
+
+            const cookies = extractCookies(requestData);
+            const headers = extractHeaders(requestData);
+
+            return {
+                time: getElementText('time'),
+                url: getElementText('url'),
+                host: getElementText('host'),
+                method: getElementText('method'),
+                status: getElementText('status'),
+                path: getElementText('path'),
+                cookies: cookies,
+                headers: headers,
+                requestSize: requestData.length,
+                responseSize: responseEl ? responseEl.textContent.length : 0
+            };
+        }
+
+        function extractCookies(requestData) {
+            const cookies = {};
+            const lines = requestData.split('\n');
+            for (let line of lines) {
+                if (line.startsWith('Cookie:')) {
+                    const cookieStr = line.substring(8).trim();
+                    cookieStr.split('; ').forEach(cookie => {
+                        const [key, ...valueParts] = cookie.split('=');
+                        if (key) {
+                            cookies[key] = valueParts.join('=');
+                        }
+                    });
+                    break;
+                }
+            }
+            return cookies;
+        }
+
+        function extractHeaders(requestData) {
+            const headers = {};
+            const lines = requestData.split('\n');
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '') break;
+                const colonIndex = line.indexOf(':');
+                if (colonIndex > 0) {
+                    const key = line.substring(0, colonIndex).trim();
+                    const value = line.substring(colonIndex + 1).trim();
+                    headers[key] = value;
+                }
+            }
+            return headers;
+        }
+
+        function categorizeDomain(host) {
+            const h = host.toLowerCase();
+            if (h.includes('openai') || h.includes('chatgpt')) return 'OpenAI';
+            if (h.includes('claude') || h.includes('anthropic')) return 'Anthropic';
+            if (h.includes('google') || h.includes('gemini')) return 'Google';
+            if (h.includes('xai') || h.includes('grok') || h.includes('x.com')) return 'xAI';
+            if (h.includes('cloudflare') || h.includes('cdn')) return 'CDN/Security';
+            if (h.includes('analytics') || h.includes('segment')) return 'Analytics';
+            if (h.includes('auth') || h.includes('oauth')) return 'Authentication';
+            if (h.includes('s3') || h.includes('storage')) return 'Storage';
+            return 'Third-party';
+        }
+
+        function analyzeRequestForFlags(request) {
+            const flags = [];
+            const path = request.path.toLowerCase();
+            const host = request.host.toLowerCase();
+            const url = request.url.toLowerCase();
+
+            // Critical Flags
+            if (host.includes('analytics') || host.includes('segment') || host.includes('mixpanel')) {
+                flags.push({
+                    level: 'critical',
+                    reason: 'Third-party Analytics - User behavior tracking detected',
+                    icon: '🚨'
+                });
+            }
+
+            if (host.includes('facebook') || host.includes('doubleclick') || host.includes('ads')) {
+                flags.push({
+                    level: 'critical',
+                    reason: 'Advertising/Social Media Tracker - Privacy concern',
+                    icon: '🚨'
+                });
+            }
+
+            // Warning Flags
+            if (path.includes('upload') || path.includes('file') || (request.method === 'POST' && host.includes('s3'))) {
+                flags.push({
+                    level: 'warning',
+                    reason: 'File Upload - Check what data is being transmitted',
+                    icon: '⚠️'
+                });
+            }
+
+            if (path.includes('share') || path.includes('public')) {
+                flags.push({
+                    level: 'warning',
+                    reason: 'Share/Public Link - Content may be accessible to others',
+                    icon: '⚠️'
+                });
+            }
+
+            if (Object.keys(request.cookies).length > 10) {
+                flags.push({
+                    level: 'warning',
+                    reason: `High Cookie Count (${Object.keys(request.cookies).length}) - Extensive tracking`,
+                    icon: '⚠️'
+                });
+            }
+
+            if (request.cookies['_ga'] || request.cookies['_gid'] || request.cookies['_fbp']) {
+                flags.push({
+                    level: 'warning',
+                    reason: 'Tracking Cookies Detected (Google Analytics/Facebook)',
+                    icon: '⚠️'
+                });
+            }
+
+            // Info Flags
+            if (path.includes('oauth') || path.includes('auth') || path.includes('login')) {
+                flags.push({
+                    level: 'info',
+                    reason: 'Authentication Flow - Verify OAuth provider',
+                    icon: 'ℹ️'
+                });
+            }
+
+            if (categorizeDomain(host) === 'Third-party' && !host.includes('cdn') && !host.includes('cloudflare')) {
+                flags.push({
+                    level: 'info',
+                    reason: 'Third-party Domain - Review data sharing practices',
+                    icon: 'ℹ️'
+                });
+            }
+
+            if (path.includes('voice') || path.includes('audio') || path.includes('tts')) {
+                flags.push({
+                    level: 'info',
+                    reason: 'Voice/Audio Processing - Check audio data handling',
+                    icon: 'ℹ️'
+                });
+            }
+
+            if (path.includes('image') || path.includes('dall-e') || path.includes('generate')) {
+                flags.push({
+                    level: 'info',
+                    reason: 'Image Generation/Processing - Review image metadata',
+                    icon: 'ℹ️'
+                });
+            }
+
+            if (request.status.startsWith('4') || request.status.startsWith('5')) {
+                flags.push({
+                    level: 'info',
+                    reason: `Error Response (${request.status}) - May indicate security controls`,
+                    icon: 'ℹ️'
+                });
+            }
+
+            return flags;
+        }
+
+        function displayResults(data) {
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="icon">📨</div>
+                    <div class="number">${data.totalRequests}</div>
+                    <div class="label">Total Requests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon">🌐</div>
+                    <div class="number">${Object.keys(data.domains).length}</div>
+                    <div class="label">Unique Domains</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon">🍪</div>
+                    <div class="number">${data.cookies.length}</div>
+                    <div class="label">Cookie Types</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);">
+                    <div class="icon">🚩</div>
+                    <div class="number">${data.flaggedRequests.length}</div>
+                    <div class="label">Flagged Requests</div>
+                </div>
+            `;
+
+            displaySummary(data);
+            displayDomains(data);
+            displayCookies(data);
+            displayRequests(data);
+        }
+
+        function displaySummary(data) {
+            const summary = document.getElementById('summary');
+
+            let flaggedSection = '';
+            if (data.flaggedRequests.length > 0) {
+                const criticalFlags = data.flaggedRequests.filter(r => r.flags.some(f => f.level === 'critical'));
+                const warningFlags = data.flaggedRequests.filter(r => r.flags.some(f => f.level === 'warning'));
+                const infoFlags = data.flaggedRequests.filter(r => r.flags.some(f => f.level === 'info'));
+
+                flaggedSection = `
+                    <div class="flag-section">
+                        <div class="flag-section-title">
+                            <span>🚩</span>
+                            <span>Flagged Requests Summary</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 28px; font-weight: bold; color: #dc2626;">${criticalFlags.length}</div>
+                                <div style="font-size: 13px; color: #6b7280;">Critical Issues</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 28px; font-weight: bold; color: #f59e0b;">${warningFlags.length}</div>
+                                <div style="font-size: 13px; color: #6b7280;">Warnings</div>
+                            </div>
+                            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 28px; font-weight: bold; color: #3b82f6;">${infoFlags.length}</div>
+                                <div style="font-size: 13px; color: #6b7280;">Info Flags</div>
+                            </div>
+                        </div>
+                        <ul class="flag-list">
+                            ${data.flaggedRequests.slice(0, 5).map(req =>
+                    `<li>
+                                    <span class="flag-icon">${req.flags[0].icon}</span>
+                                    <span><strong>${req.host}</strong> - ${req.flags[0].reason}</span>
+                                </li>`
+                ).join('')}
+                            ${data.flaggedRequests.length > 5 ? `<li style="color: #9ca3af; border-left-color: #d1d5db;">... and ${data.flaggedRequests.length - 5} more flagged requests</li>` : ''}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            summary.innerHTML = `
+                ${flaggedSection}
+                <div class="section">
+                    <div class="section-title"><span class="icon">📋</span>Export Information</div>
+                    <div class="category-group">
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-label">📅 Export Time:</div>
+                                <div class="info-value">${data.exportTime}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">🔧 Burp Version:</div>
+                                <div class="info-value">${data.burpVersion}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">📊 Total Requests:</div>
+                                <div class="info-value">${data.totalRequests}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayDomains(data) {
+            const domains = document.getElementById('domains');
+            let html = '<div class="section"><div class="section-title"><span class="icon">🌐</span>Domain Categories</div>';
+
+            const categoryIcons = {
+                'OpenAI': '🤖',
+                'Anthropic': '🔮',
+                'Google': '🔍',
+                'xAI': '✖️',
+                'CDN/Security': '🛡️',
+                'Analytics': '📊',
+                'Authentication': '🔐',
+                'Storage': '💾',
+                'Third-party': '🔗'
+            };
+
+            Object.keys(data.categories).sort().forEach(category => {
+                const icon = categoryIcons[category] || '📌';
+                html += `
+                    <div class="category-group">
+                        <div class="category-title">
+                            ${icon} ${category}
+                            <span class="category-badge">${data.categories[category].length}</span>
+                        </div>
+                        <ul class="domain-list">
+                            ${data.categories[category].map(domain =>
+                    `<li>
+                                    <span>${domain}</span>
+                                    <span style="color: #9ca3af; font-weight: 600;">${data.domains[domain]} requests</span>
+                                </li>`
+                ).join('')}
+                        </ul>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            domains.innerHTML = html;
+        }
+
+        function displayCookies(data) {
+            const cookies = document.getElementById('cookies');
+            cookies.innerHTML = `
+                <div class="section">
+                    <div class="section-title"><span class="icon">🍪</span>Cookie Analysis</div>
+                    <div class="category-group">
+                        <div class="category-title">
+                            Found ${data.cookies.length} unique cookie types
+                        </div>
+                        <div class="cookie-list">
+                            ${data.cookies.map(cookie => `<div class="cookie-item">🔹 ${cookie}</div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayRequests(data) {
+            const requests = document.getElementById('requests');
+            const maxRequests = 20;
+            let html = '<div class="section"><div class="section-title"><span class="icon">📡</span>Detailed Request Analysis</div>';
+            html += `<p style="color: #6b7280; margin-bottom: 24px;">Showing first ${Math.min(maxRequests, data.requests.length)} of ${data.requests.length} requests</p>`;
+
+            data.requests.slice(0, maxRequests).forEach((req, index) => {
+                const methodClass = `method-${req.method}`;
+                const statusClass = `status-${req.status.charAt(0)}xx`;
+                const hasCriticalFlag = req.flags && req.flags.some(f => f.level === 'critical');
+                const cardClass = hasCriticalFlag ? 'request-card flagged-card' : 'request-card';
+
+                html += `
+                    <div class="${cardClass}">
+                        <div class="request-header">
+                            <div class="request-badges">
+                                <span class="request-method ${methodClass}">${req.method}</span>
+                                <span class="status-badge ${statusClass}">${req.status}</span>
+                                ${req.flags && req.flags.length > 0 ? req.flags.map(flag =>
+                    `<span class="flag-badge flag-${flag.level}">${flag.icon} ${flag.level}</span>`
+                ).join('') : ''}
+                            </div>
+                            <div class="request-time">⏰ ${req.time}</div>
+                        </div>
+                        
+                        ${req.flags && req.flags.length > 0 ? `
+                            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                                <strong style="color: #dc2626; font-size: 14px;">⚠️ Attention Required:</strong>
+                                <ul style="margin: 8px 0 0 20px; color: #991b1b; font-size: 13px;">
+                                    ${req.flags.map(flag => `<li>${flag.reason}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-label">🌐 Host:</div>
+                                <div class="info-value">${req.host}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">📍 Path:</div>
+                                <div class="info-value">${req.path.substring(0, 100)}${req.path.length > 100 ? '...' : ''}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">📂 Category:</div>
+                                <div class="info-value">${categorizeDomain(req.host)}</div>
+                            </div>
+                        </div>
+                        
+                        ${Object.keys(req.cookies).length > 0 ? `
+                            <div style="margin-top: 20px;">
+                                <strong style="color: #4b5563; font-size: 15px;">🍪 Cookies (${Object.keys(req.cookies).length}):</strong>
+                                <div class="cookie-list">
+                                    ${Object.entries(req.cookies).slice(0, 5).map(([key, value]) =>
+                    `<div class="cookie-item">${key}: ${value.substring(0, 50)}${value.length > 50 ? '...' : ''}</div>`
+                ).join('')}
+                                    ${Object.keys(req.cookies).length > 5 ? `<div class="cookie-item" style="color: #9ca3af; border-left-color: #d1d5db;">... and ${Object.keys(req.cookies).length - 5} more</div>` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="info-row" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                            <div class="info-label">📦 Data Size:</div>
+                            <div class="info-value">Request: ${formatBytes(req.requestSize)} | Response: ${formatBytes(req.responseSize)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            requests.innerHTML = html;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function switchTab(event, tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        function exportToCSV() {
+            if (!analyzedData) return;
+
+            let csv = 'Time,Method,Status,Host,Category,Path,Cookie Count,Request Size,Response Size,Flags\n';
+
+            analyzedData.requests.forEach(req => {
+                const flagText = req.flags ? req.flags.map(f => f.reason).join('; ') : '';
+                csv += `"${req.time}","${req.method}","${req.status}","${req.host}","${categorizeDomain(req.host)}","${req.path.replace(/"/g, '""')}",${Object.keys(req.cookies).length},${req.requestSize},${req.responseSize},"${flagText.replace(/"/g, '""')}"\n`;
+            });
+
+            downloadFile(csv, 'burp_analysis.csv', 'text/csv');
+        }
+
+        function exportToJSON() {
+            if (!analyzedData) return;
+
+            const jsonData = JSON.stringify(analyzedData, null, 2);
+            downloadFile(jsonData, 'burp_analysis.json', 'application/json');
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type: type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+
+</html>
